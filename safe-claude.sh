@@ -32,10 +32,16 @@ if $REBUILD || ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
     docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
 fi
 
+# Ensure host-side credential targets exist so Docker bind-mounts them as
+# files/dirs rather than creating empty directories in their place.
+mkdir -p "$HOME/.claude"
+touch "$HOME/.claude.json"
+
 # Run Claude inside the container
 exec docker run --rm -it \
     -v "$PWD:/workspace" \
     -v "$HOME/.claude:/home/node/.claude" \
+    -v "$HOME/.claude.json:/home/node/.claude.json" \
     -w /workspace \
     "$IMAGE_NAME" \
     claude --dangerously-skip-permissions

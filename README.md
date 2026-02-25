@@ -1,14 +1,10 @@
-# safe_claude
+# Safe Claude
 
-A self-contained toolkit for running Claude Code with `--dangerously-skip-permissions` safely inside Docker. Copy or clone this directory anywhere and get a one-command sandboxed Claude session from any project.
-
----
+A self-contained toolkit for running Claude Code with `--dangerously-skip-permissions` safely inside a Docker container. Copy or clone this directory anywhere and get a one-command sandboxed Claude session from any project.
 
 ## What is this
 
 Claude Code's `--dangerously-skip-permissions` flag is powerful — it lets Claude run shell commands, edit files, and install packages without prompting for approval on every action. That power is risky on your host machine. `safe_claude` wraps Claude in a Docker container so those actions happen in an isolated environment: your project files are visible (via a mount), but the container can't touch the rest of your system.
-
----
 
 ## Quick start
 
