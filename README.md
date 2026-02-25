@@ -45,6 +45,7 @@ Claude opens with your current directory mounted as `/workspace` inside the cont
 | Flag | Description |
 |------|-------------|
 | `--rebuild` | Force a fresh Docker image build |
+| `--mount SRC[:DEST]` | Mount an extra host path into the container. If `DEST` is omitted, `SRC` is used as the destination path. May be repeated. |
 | `--help` | Show usage |
 
 ---
@@ -54,9 +55,10 @@ Claude opens with your current directory mounted as `/workspace` inside the cont
 ```
 HOST MACHINE                    DOCKER CONTAINER
 ─────────────────               ─────────────────────────────────
-~/other-projects    (hidden)    /workspace  ← your project (r/w)
-/etc, /usr, ...     (hidden)    ~/.claude   ← config + memory (r/w)
-other users' files  (hidden)    full internet access
+~/other-projects    (hidden)    /workspace        ← your project (r/w)
+/etc, /usr, ...     (hidden)    ~/.claude         ← config + memory (r/w)
+other users' files  (hidden)    --mount paths     ← your extra mounts (r/w)
+                                full internet access
 ```
 
 **Protected:** everything on your host outside the current project directory.
@@ -67,6 +69,23 @@ other users' files  (hidden)    full internet access
 - **`~/.claude`** — Claude config and memory are mounted so sessions persist across runs
 
 > To disable network access: add `--network none` to the `docker run` call in `safe-claude.sh` (breaks package installs and API calls).
+
+### Mounting extra directories
+
+By default only `$PWD` and `~/.claude` are visible inside the container. Use `--mount` to expose additional host paths — shared libraries, model weights, credential directories, etc. — without opening up the entire filesystem.
+
+```bash
+# Auto-mapped: /tmp/my-data is available at /tmp/my-data inside the container
+safe-claude --mount /tmp/my-data
+
+# Explicit destination
+safe-claude --mount /tmp/my-data:/data
+
+# Multiple mounts
+safe-claude --mount /shared/libs --mount /mnt/weights:/weights
+```
+
+The source path must exist on the host. If you pass `$PWD` or `~/.claude` as a source, the flag is silently skipped since those are already mounted.
 
 ---
 
