@@ -1,90 +1,130 @@
-# Safe Claude
+```
+ ____         __        ____  _                 _
+/ ___|  __ _ / _| ___  / ___|| | __ _ _   _  __| | ___
+\___ \ / _` | |_ / _ \| |    | |/ _` | | | |/ _` |/ _ \
+ ___) | (_| |  _|  __/| |___ | | (_| | |_| | (_| |  __/
+|____/ \__,_|_|  \___| \____||_|\__,_|\__,_|\__,_|\___|
 
-A self-contained toolkit for running Claude Code with `--dangerously-skip-permissions` safely inside a Docker container. Copy or clone this directory anywhere and get a one-command sandboxed Claude session from any project.
-
-## What is this
-
-Claude Code's `--dangerously-skip-permissions` flag is powerful — it lets Claude run shell commands, edit files, and install packages without prompting for approval on every action. That power is risky on your host machine. `safe_claude` wraps Claude in a Docker container so those actions happen in an isolated environment: your project files are visible (via a mount), but the container can't touch the rest of your system.
-
-## Quick start
-
-```bash
-# 1. Clone or copy this directory somewhere convenient
-git clone <repo> && cp -r <repo>/safe_claude ~/safe_claude
-
-# 2. Set your API key
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# 3. Run from any project directory
-cd ~/my-project
-~/safe_claude/safe-claude.sh
+  Claude Code · --dangerously-skip-permissions · Docker sandbox
 ```
 
-The first run builds the Docker image automatically. Subsequent runs start in seconds.
+> Run Claude Code with full autonomy — without giving it full access to your machine.
+
+SafeClaude wraps Claude's `--dangerously-skip-permissions` mode in a Docker container. Claude can freely edit files, run shell commands, and install packages — but only inside the sandbox. Your host system stays safe.
+
+**Your project files are mounted read-write** into the container as `/workspace`, so Claude can see and edit everything in the directory you launch from. Changes are real and immediate — that's the point.
 
 ---
 
-## Daily usage
-
-The easiest workflow is a symlink so you can call `safe-claude` from anywhere:
+## Install
 
 ```bash
-ln -s ~/safe_claude/safe-claude.sh ~/bin/safe-claude
-# (ensure ~/bin is in your PATH)
+# Clone the repo
+git clone https://github.com/JakeHartnell/SafeClaude.git ~/safe-claude
+
+# Add a symlink so you can call it from anywhere
+ln -s ~/safe-claude/safe-claude.sh ~/bin/safe-claude
+# (make sure ~/bin is in your PATH)
 ```
 
-Then from any project:
+That's it. The Docker image is built automatically on first run.
+
+---
+
+## Usage
 
 ```bash
 cd /any/project
 safe-claude
 ```
 
-Claude opens with `/any/project` mounted as `/workspace` inside the container. Your `~/.claude` directory is also mounted so memory and configuration persist across sessions.
+Claude opens with your current directory mounted as `/workspace` inside the container. Your `~/.claude` config and memory persist across sessions.
 
----
-
-## Flags
+### Flags
 
 | Flag | Description |
 |------|-------------|
-| `--rebuild` | Force a fresh Docker image build (useful after editing the Dockerfile) |
-| `--help` | Show usage information |
+| `--rebuild` | Force a fresh Docker image build |
+| `--help` | Show usage |
+
+---
+
+## What's sandboxed
+
+```
+HOST MACHINE                    DOCKER CONTAINER
+─────────────────               ─────────────────────────────────
+~/other-projects    (hidden)    /workspace  ← your project (r/w)
+/etc, /usr, ...     (hidden)    ~/.claude   ← config + memory (r/w)
+other users' files  (hidden)    full internet access
+```
+
+**Protected:** everything on your host outside the current project directory.
+
+**Not protected:**
+- Your **project files** — Claude can edit them freely (that's the whole point)
+- **Network** — the container has full outbound internet so Claude can `npm install`, `git clone`, `curl`, etc.
+- **`~/.claude`** — Claude config and memory are mounted so sessions persist across runs
+
+> To disable network access: add `--network none` to the `docker run` call in `safe-claude.sh` (breaks package installs and API calls).
+
+---
+
+## Customizing the environment
+
+Edit `Dockerfile` to add whatever tools your project needs, then rebuild:
+
+```bash
+vim ~/safe-claude/Dockerfile
+safe-claude --rebuild
+```
+
+### Examples by project type
+
+**Rust project:**
+```dockerfile
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+```
+
+**Foundry / Solidity project:**
+```dockerfile
+RUN curl -L https://foundry.paradigm.xyz | bash && \
+    /root/.foundry/bin/foundryup
+ENV PATH="/root/.foundry/bin:${PATH}"
+```
+
+**Python project:**
+```dockerfile
+RUN apt-get install -y python3 python3-pip python3-venv
+```
+
+Different projects need different toolchains — the Dockerfile is yours to extend.
+
+### Pin a specific Claude Code version
+
+```bash
+docker build --build-arg CLAUDE_VERSION=1.2.3 -t safe-claude:latest ~/safe-claude
+```
 
 ---
 
 ## Safety model
 
-### What IS sandboxed
+The sandbox protects your host by isolating Claude's actions inside a container. Claude gets `--dangerously-skip-permissions` so it never stops to ask for approval — it just does the work. The Docker layer is what keeps that safe.
 
-- The host filesystem outside `$PWD` — Claude can only see your current project directory
-- System binaries and configuration — the container has its own isolated OS
-- Other users' files and processes
+Think of it as: **full autonomy, bounded blast radius.**
 
-### What is NOT sandboxed
+### vs. Claude Code's built-in sandbox
 
-- **Network access** — the container has full outbound internet access. Claude can `curl`, `npm install`, `git clone`, etc. This is intentional (many legitimate tasks need it) but worth being aware of.
-- **Your project files** — `$PWD` is mounted read-write so Claude can edit your code. That's the point, but it means changes are real and immediate.
-- **`~/.claude`** — your Claude config and memory are mounted so sessions persist. Be aware that Claude can read and write this directory.
+Claude Code has its own `/sandbox` feature (using Apple Seatbelt on macOS, bubblewrap on Linux) that restricts bash commands to `$PWD` and proxies network traffic. SafeClaude takes a different approach:
 
-If you need network isolation too, add `--network none` to the `docker run` call in `safe-claude.sh` (note: this will break package installs and API calls that require outbound connectivity).
+| | Built-in sandbox | SafeClaude (Docker) |
+|---|---|---|
+| **Isolation scope** | Bash commands only | Entire OS environment |
+| **Filesystem** | R/W to `$PWD`, read-only elsewhere | Only `$PWD` and `~/.claude` visible |
+| **Network** | Proxied, domain allowlist | Full access (or `--network none`) |
+| **Overhead** | Lightweight, native | Full container startup |
+| **Customizable env** | No | Yes — edit the Dockerfile |
 
----
-
-## Customisation
-
-Edit `Dockerfile` to add tools or change the base image, then rebuild:
-
-```bash
-# Edit the Dockerfile
-vim ~/safe_claude/Dockerfile
-
-# Force a rebuild on next run
-safe-claude --rebuild
-```
-
-To pin a specific Claude Code version, pass the `CLAUDE_VERSION` build arg:
-
-```bash
-docker build --build-arg CLAUDE_VERSION=1.2.3 -t safe-claude:latest ~/safe_claude
-```
+The built-in sandbox is a good fit for interactive use on your own machine. SafeClaude is better when you want a fully reproducible, customizable environment — or when you're running Claude autonomously and want stronger isolation guarantees.

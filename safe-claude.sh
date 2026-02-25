@@ -37,11 +37,29 @@ fi
 mkdir -p "$HOME/.claude"
 touch "$HOME/.claude.json"
 
+# Copy .claude.json to a temp file so the container never writes directly to
+# the host file (Docker's macOS filesystem layer can corrupt atomic renames).
+CLAUDE_JSON_TMP=$(mktemp /tmp/claude-json-XXXXXX.json)
+cp "$HOME/.claude.json" "$CLAUDE_JSON_TMP"
+cleanup() { rm -f "$CLAUDE_JSON_TMP"; }
+trap cleanup EXIT
+
 # Run Claude inside the container
-exec docker run --rm -it \
+docker run --rm -it \
     -v "$PWD:/workspace" \
     -v "$HOME/.claude:/home/node/.claude" \
-    -v "$HOME/.claude.json:/home/node/.claude.json" \
+    -v "$CLAUDE_JSON_TMP:/home/node/.claude.json" \
     -w /workspace \
     "$IMAGE_NAME" \
     claude --dangerously-skip-permissions
+EXIT_CODE=$?
+
+# Copy the temp file back only if it is valid JSON (preserves auth/setting
+# updates while protecting the host file if the container corrupted it).
+if jq empty "$CLAUDE_JSON_TMP" 2>/dev/null; then
+    cp "$CLAUDE_JSON_TMP" "$HOME/.claude.json"
+else
+    echo "safe-claude: container wrote invalid JSON to .claude.json — host file left unchanged." >&2
+fi
+
+exit $EXIT_CODE
