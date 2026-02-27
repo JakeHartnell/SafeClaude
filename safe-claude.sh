@@ -103,11 +103,16 @@ touch "$HOME/.claude.json"
 # the host file (Docker's macOS filesystem layer can corrupt atomic renames).
 CLAUDE_JSON_TMP=$(mktemp /tmp/claude-json-XXXXXX)
 cp "$HOME/.claude.json" "$CLAUDE_JSON_TMP"
-cleanup() { rm -f "$CLAUDE_JSON_TMP"; }
-trap cleanup EXIT
+CONTAINER_NAME="safe-claude-$$"
+cleanup() {
+    docker stop "$CONTAINER_NAME" &>/dev/null || true
+    rm -f "$CLAUDE_JSON_TMP"
+}
+trap cleanup EXIT INT TERM HUP
 
 # Run Claude inside the container
 docker run --rm -it \
+    --name "$CONTAINER_NAME" \
     -v "$PWD:/workspace" \
     -v "$HOME/.claude:/home/node/.claude" \
     -v "$CLAUDE_JSON_TMP:/home/node/.claude.json" \
