@@ -19,6 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     python3 \
     build-essential \
+    libssl-dev \
+    pkg-config \
     openssh-client \
     zip \
     && apt-get clean \
@@ -45,6 +47,20 @@ ENV PATH=$PATH:/usr/local/share/npm-global/bin
 ENV SHELL=/bin/zsh
 ENV HISTFILE=/commandhistory/.bash_history
 ENV PROMPT_COMMAND='history -a'
+
+# Install Rust and WebAssembly toolchain
+ENV CARGO_HOME=/home/node/.cargo
+ENV RUSTUP_HOME=/home/node/.rustup
+ENV PATH=$PATH:/home/node/.cargo/bin
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \
+    && rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2 \
+    && cargo install wasm-tools cargo-component wit-bindgen-cli
+
+# Install Foundry (forge, cast, anvil, chisel)
+ENV FOUNDRY_DIR=/home/node/.foundry
+ENV PATH=$PATH:/home/node/.foundry/bin
+RUN curl -L https://foundry.paradigm.xyz | bash \
+    && /home/node/.foundry/bin/foundryup
 
 # Install zsh configuration and claude-code
 ARG CLAUDE_VERSION=latest
