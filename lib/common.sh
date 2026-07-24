@@ -173,7 +173,7 @@ ensure_image() {
     local rebuild="$1" script_dir="$2"
     if [[ "$rebuild" == "true" ]] || ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
         echo "Building $IMAGE_NAME..."
-        docker build -t "$IMAGE_NAME" "$script_dir"
+        docker build --no-cache -t "$IMAGE_NAME" "$script_dir"
     fi
 }
 
