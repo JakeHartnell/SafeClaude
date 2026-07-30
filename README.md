@@ -65,6 +65,7 @@ safebox claude
 | Flag | Description |
 |------|-------------|
 | `--rebuild` | Force a fresh Docker image build. Can run standalone (`safebox --rebuild`) since the image is shared across all three harnesses, or alongside a harness (`safebox claude --rebuild`) to rebuild then launch. |
+| `--allow-host-network` | Run the container with Docker host networking, allowing access to services on the host network, including services bound to `localhost`. Disabled by default. |
 | `--mount SRC[:DEST]` | Mount an extra host path into the container. If `DEST` is omitted, `SRC` is used as the destination path. May be repeated. |
 | `--` | Everything after this is appended verbatim to the harness's launch command. Useful for `safebox claude -- --resume <sessionId>` or `safebox pi -- --model claude-sonnet-4-6`. |
 | `--help` | Show usage |
@@ -119,6 +120,27 @@ other users' files  (hidden)    ~/.codex          ← Codex config (codex only)
 - **The mounted harness config dir** — `~/.claude` for Claude, `~/.codex` for Codex, `~/.pi` for Pi, so sessions and auth persist across runs
 
 > To disable network access: add `--network none` to the `docker run` call in `safebox` (breaks package installs and API calls).
+
+### Accessing the host network
+
+Containers use Docker's normal isolated network by default. To let a safebox
+connect through the host's network stack—for example, to reach a development
+server bound only to `127.0.0.1`—opt in for that run:
+
+```bash
+safebox claude --allow-host-network
+```
+
+This uses Docker's [`host` network
+driver](https://docs.docker.com/engine/network/drivers/host/). It removes the
+container's network namespace isolation and can expose host-only services such
+as local databases and admin endpoints to the agent. It does not add any
+filesystem mounts or change the user inside the container.
+
+Host networking works natively on Linux. On Docker Desktop it requires a
+version that supports host networking and the feature must be enabled in
+Docker Desktop's settings. If the Docker installation does not support it,
+Docker will reject the launch.
 
 ### Mounting extra directories
 

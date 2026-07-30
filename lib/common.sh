@@ -22,7 +22,8 @@ die() {
 
 print_usage() {
     cat <<'EOF'
-Usage: safebox <harness> [--rebuild] [--mount SRC[:DEST]] ... [-- <harness args>]
+Usage: safebox <harness> [--rebuild] [--allow-host-network]
+               [--mount SRC[:DEST]] ... [-- <harness args>]
 
 Runs a coding-agent harness inside a Docker sandbox. The current directory is
 mounted as /workspace inside the container; the harness's host config dir is
@@ -37,6 +38,8 @@ Flags:
   --rebuild            Force a fresh Docker image build. Can run standalone
                        (`safebox --rebuild`) since the image is shared across
                        harnesses, or alongside a harness to rebuild then launch.
+  --allow-host-network Give the container access to the host's network stack
+                       using Docker host networking. Disabled by default.
   --mount SRC[:DEST]   Mount an extra host path into the container.
                        If DEST is omitted, SRC is used as the destination.
                        May be repeated.
@@ -49,6 +52,7 @@ Env file (optional, must be chmod 600):
 Examples:
   safebox --rebuild
   safebox claude
+  safebox claude --allow-host-network
   safebox codex --mount /tmp/data
   safebox pi -- --model claude-sonnet-4-6
 EOF

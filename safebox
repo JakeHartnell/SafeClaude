@@ -32,6 +32,7 @@ case "$HARNESS" in
 esac
 
 REBUILD=false
+ALLOW_HOST_NETWORK=false
 EXTRA_MOUNTS=()
 PASSTHROUGH=()
 
@@ -39,6 +40,10 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --rebuild)
             REBUILD=true
+            shift
+            ;;
+        --allow-host-network)
+            ALLOW_HOST_NETWORK=true
             shift
             ;;
         --mount)
@@ -85,6 +90,11 @@ while IFS= read -r __line; do DOCKER_FLAGS+=("$__line"); done < <(docker_socket_
 PROVIDER_ENV_FLAGS=()
 while IFS= read -r __line; do PROVIDER_ENV_FLAGS+=("$__line"); done < <(provider_api_env_flags)
 unset __line
+
+NETWORK_FLAGS=()
+if [[ "$ALLOW_HOST_NETWORK" == "true" ]]; then
+    NETWORK_FLAGS=(--network host)
+fi
 
 # Per-harness wiring: which host config dir to mount, which command to run.
 HARNESS_MOUNTS=()
@@ -136,6 +146,7 @@ trap cleanup EXIT INT TERM HUP
 
 docker run --rm -it \
     --name "$CONTAINER_NAME" \
+    "${NETWORK_FLAGS[@]+"${NETWORK_FLAGS[@]}"}" \
     -v "$PWD:/workspace" \
     -v "$HOME/.cache/qmd:/home/node/.cache/qmd" \
     "${HARNESS_MOUNTS[@]}" \
