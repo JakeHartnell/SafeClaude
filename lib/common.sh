@@ -32,6 +32,7 @@ mounted too so sessions persist across runs.
 Harnesses:
   claude    Anthropic Claude Code (--dangerously-skip-permissions)
   codex     OpenAI Codex CLI (--dangerously-bypass-approvals-and-sandbox)
+  grok      xAI Grok Build (--always-approve)
   pi        pi.dev coding agent (permissionless by design)
 
 Flags:
@@ -54,6 +55,8 @@ Examples:
   safebox claude
   safebox claude --allow-host-network
   safebox codex --mount /tmp/data
+  safebox grok
+  safebox grok -- login --device-auth
   safebox pi -- --model claude-sonnet-4-6
 EOF
 }
@@ -159,11 +162,11 @@ docker_socket_flags() {
 }
 
 # Emit `-e KEY=VAL` lines for whichever provider API keys are currently set on
-# the host. Lets pi (and codex via custom providers) pick up host-side keys
-# without forwarding the user's entire environment.
+# the host. Lets harnesses use provider credentials without forwarding the
+# user's entire environment.
 provider_api_env_flags() {
     local key
-    for key in ANTHROPIC_API_KEY OPENAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY \
+    for key in ANTHROPIC_API_KEY OPENAI_API_KEY XAI_API_KEY GOOGLE_API_KEY GEMINI_API_KEY \
                GROQ_API_KEY MISTRAL_API_KEY AZURE_OPENAI_API_KEY \
                AWS_BEDROCK_API_KEY DEEPSEEK_API_KEY; do
         if [[ -n "${!key:-}" ]]; then

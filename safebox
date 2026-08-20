@@ -11,7 +11,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 HARNESS="${1:-}"
 case "$HARNESS" in
-    claude|codex|pi)
+    claude|codex|grok|pi)
         shift
         ;;
     --rebuild)
@@ -125,6 +125,14 @@ case "$HARNESS" in
         # working — OpenAI has renamed this flag twice already.
         HARNESS_CMD=(codex --dangerously-bypass-approvals-and-sandbox)
         ;;
+    grok)
+        mkdir -p "$HOME/.grok"
+        HARNESS_MOUNTS=(-v "$HOME/.grok:/home/node/.grok")
+        # Grok's native always-approve mode matches safebox's permissionless
+        # execution model. The image owns the CLI version, so suppress the
+        # in-app updater and upgrade by rebuilding instead.
+        HARNESS_CMD=(grok --always-approve --no-auto-update)
+        ;;
     pi)
         mkdir -p "$HOME/.pi"
         HARNESS_MOUNTS=(-v "$HOME/.pi:/home/node/.pi")
@@ -140,7 +148,9 @@ mkdir -p "$HOME/.cache/qmd"
 CONTAINER_NAME="safebox-${HARNESS}-$$"
 cleanup() {
     docker stop "$CONTAINER_NAME" &>/dev/null || true
-    [[ -n "$CLAUDE_JSON_TMP" ]] && rm -f "$CLAUDE_JSON_TMP"
+    if [[ -n "$CLAUDE_JSON_TMP" ]]; then
+        rm -f "$CLAUDE_JSON_TMP"
+    fi
 }
 trap cleanup EXIT INT TERM HUP
 

@@ -202,7 +202,7 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # --- Agent harnesses ---------------------------------------------------------
 # Each harness gets its own RUN so adding a new one (or bumping versions)
 # invalidates only that layer and the ones below it. Ordered most-stable to
-# most-volatile: Claude first (most users), Codex second, Pi last.
+# most-volatile: Claude first (most users), Codex second, Grok and Pi last.
 
 # Install Claude Code via native installer (auto-updates)
 # Falls back to npm install if the native installer is rate-limited
@@ -215,6 +215,23 @@ RUN curl -fsSL https://claude.ai/install.sh | bash \
 ARG CODEX_VERSION=latest
 ENV CODEX_HOME=/home/node/.codex
 RUN npm install -g @openai/codex@${CODEX_VERSION}
+
+# Install xAI Grok Build. The official installer keeps its managed binary in
+# ~/.grok, but that directory is bind-mounted at runtime for auth and session
+# persistence (and may contain a host-platform binary). Copy the Linux binary
+# into the image's global executable path, then remove the installer state so
+# the runtime mount cannot shadow it.
+ARG GROK_VERSION=latest
+RUN set -eu; \
+    if [ "$GROK_VERSION" = "latest" ]; then \
+        curl -fsSL https://x.ai/cli/install.sh | env SHELL=/bin/false bash; \
+    else \
+        curl -fsSL https://x.ai/cli/install.sh \
+            | env SHELL=/bin/false bash -s -- "$GROK_VERSION"; \
+    fi; \
+    install -m 0755 "$(readlink -f /home/node/.grok/bin/grok)" \
+        /usr/local/share/npm-global/bin/grok; \
+    rm -rf /home/node/.grok
 
 # Install pi.dev coding agent. `--ignore-scripts` is the install recipe
 # documented by upstream — keep it. Pi auto-discovers ~/.pi/agent/ and the

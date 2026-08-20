@@ -5,16 +5,17 @@
  ___) | (_| |  _|  __/ |_) | (_) >  <
 |____/ \__,_|_|  \___|_.__/ \___/_/\_\
 
-  Claude · Codex · Pi · YOLO mode · Docker sandbox
+  Claude · Codex · Grok · Pi · YOLO mode · Docker sandbox
 ```
 
 > Run coding agents in full-autonomy mode — without giving them full access to your machine.
 
-`safebox` wraps three coding-agent harnesses in a Docker container so each one can edit files, run shell commands, and install packages freely, but only inside the sandbox. Your host system stays safe.
+`safebox` wraps four coding-agent harnesses in a Docker container so each one can edit files, run shell commands, and install packages freely, but only inside the sandbox. Your host system stays safe.
 
 ```bash
 safebox claude    # Anthropic Claude Code, --dangerously-skip-permissions
 safebox codex     # OpenAI Codex CLI, --dangerously-bypass-approvals-and-sandbox
+safebox grok      # xAI Grok Build, --always-approve
 safebox pi        # pi.dev coding agent (permissionless by design)
 ```
 
@@ -64,7 +65,7 @@ safebox claude
 
 | Flag | Description |
 |------|-------------|
-| `--rebuild` | Force a fresh Docker image build. Can run standalone (`safebox --rebuild`) since the image is shared across all three harnesses, or alongside a harness (`safebox claude --rebuild`) to rebuild then launch. |
+| `--rebuild` | Force a fresh Docker image build. Can run standalone (`safebox --rebuild`) since the image is shared across all four harnesses, or alongside a harness (`safebox claude --rebuild`) to rebuild then launch. |
 | `--allow-host-network` | Run the container with Docker host networking, allowing access to services on the host network, including services bound to `localhost`. Disabled by default. |
 | `--mount SRC[:DEST]` | Mount an extra host path into the container. If `DEST` is omitted, `SRC` is used as the destination path. May be repeated. |
 | `--` | Everything after this is appended verbatim to the harness's launch command. Useful for `safebox claude -- --resume <sessionId>` or `safebox pi -- --model claude-sonnet-4-6`. |
@@ -107,6 +108,7 @@ HOST MACHINE                    DOCKER CONTAINER
 ~/other-projects    (hidden)    /workspace        ← your project (r/w)
 /etc, /usr, ...     (hidden)    ~/.claude         ← Claude config (claude only)
 other users' files  (hidden)    ~/.codex          ← Codex config (codex only)
+                                ~/.grok           ← Grok config    (grok only)
                                 ~/.pi             ← Pi config    (pi only)
                                 --mount paths     ← your extra mounts (r/w)
                                 full internet access
@@ -117,7 +119,8 @@ other users' files  (hidden)    ~/.codex          ← Codex config (codex only)
 **Not protected:**
 - Your **project files** — the agent can edit them freely (that's the whole point)
 - **Network** — the container has full outbound internet so the agent can `npm install`, `git clone`, `curl`, etc.
-- **The mounted harness config dir** — `~/.claude` for Claude, `~/.codex` for Codex, `~/.pi` for Pi, so sessions and auth persist across runs
+- **The mounted harness config dir** — `~/.claude` for Claude, `~/.codex` for Codex, `~/.grok` for Grok, `~/.pi` for Pi, so sessions and auth persist across runs
+- **The Docker daemon, when its socket exists** — safebox currently forwards `/var/run/docker.sock`, which lets a harness control the host daemon and weakens the filesystem isolation boundary
 
 > To disable network access: add `--network none` to the `docker run` call in `safebox` (breaks package installs and API calls).
 
@@ -178,6 +181,14 @@ The source path must exist on the host. If you pass `$PWD` or `~/.claude` as a s
 - Auth: `OPENAI_API_KEY` in `~/.config/safebox/.env` (or your host shell), or `codex login` on first run — auth persists in the mounted `~/.codex`.
 - If the bypass flag has been renamed upstream (OpenAI has done this twice), verify with `docker run --rm safebox:latest codex --help` and adjust `safebox`.
 
+### Grok Build
+
+- Launches `grok --always-approve --no-auto-update`.
+- Config dir: `~/.grok/` (bind-mounted r/w), so auth, settings, sessions, skills, and plugins persist.
+- Auth: set `XAI_API_KEY` in `~/.config/safebox/.env`, or run `safebox grok -- login --device-auth` and complete the device-code flow in a browser.
+- The CLI binary is baked into the Linux image outside `~/.grok`; this avoids trying to execute a macOS host binary inside Docker. Rebuild the image to update it.
+- Headless mode works from an interactive terminal, for example `safebox grok -- -p "Review this repository" --output-format json`.
+
 ### Pi
 
 - Launches `pi`. No "skip permissions" flag needed — pi has no built-in permission popups; it's designed to run in a sandbox like this one.
@@ -223,6 +234,7 @@ Different projects need different toolchains — the Dockerfile is yours to exte
 docker build \
   --build-arg CLAUDE_VERSION=1.2.3 \
   --build-arg CODEX_VERSION=0.4.0 \
+  --build-arg GROK_VERSION=1.0.5 \
   --build-arg PI_VERSION=0.7.1 \
   -t safebox:latest ~/safebox
 ```
@@ -247,7 +259,7 @@ The default image ships with a broad set of tools:
 
 ## Safety model
 
-The sandbox protects your host by isolating the agent's actions inside a container. Each harness gets the equivalent of "yes to everything" — Claude with `--dangerously-skip-permissions`, Codex with `--dangerously-bypass-approvals-and-sandbox`, Pi running in its native permissionless mode — so the agent never stops to ask for approval. The Docker layer is what keeps that safe.
+The sandbox protects your host by isolating the agent's actions inside a container. Each harness gets the equivalent of "yes to everything" — Claude with `--dangerously-skip-permissions`, Codex with `--dangerously-bypass-approvals-and-sandbox`, Grok with `--always-approve`, and Pi running in its native permissionless mode — so the agent never stops to ask for approval. The Docker layer is what keeps that safe, subject to the mounted paths and Docker-socket caveat above.
 
 Think of it as: **full autonomy, bounded blast radius.**
 
@@ -262,6 +274,6 @@ Claude Code has its own `/sandbox` feature (using Apple Seatbelt on macOS, bubbl
 | **Network** | Proxied, domain allowlist | Full access (or `--network none`) |
 | **Overhead** | Lightweight, native | Full container startup |
 | **Customizable env** | No | Yes — edit the Dockerfile |
-| **Multi-harness** | Claude only | Claude, Codex, Pi |
+| **Multi-harness** | Claude only | Claude, Codex, Grok, Pi |
 
 The built-in sandbox is a good fit for interactive use on your own machine. `safebox` is better when you want a fully reproducible, customizable environment — or when you're running an agent autonomously and want stronger isolation guarantees.
