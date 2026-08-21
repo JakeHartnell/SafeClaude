@@ -212,9 +212,26 @@ RUN curl -fsSL https://claude.ai/install.sh | bash \
 
 # Install OpenAI Codex CLI. CODEX_HOME tells codex to use the bind-mounted
 # ~/.codex dir inside the container, so sessions and auth persist across runs.
+#
+# The actual binary ships as a platform optionalDependency (~280MB unpacked for
+# linux-arm64). npm skips optional deps *silently* when the fetch fails, so
+# `npm install -g` still exits 0, the build succeeds, and codex only dies on
+# first run with "Missing optional dependency @openai/codex-linux-arm64".
+# Retry, then run the binary, so a dropped download fails the build instead of
+# the image.
 ARG CODEX_VERSION=latest
 ENV CODEX_HOME=/home/node/.codex
-RUN npm install -g @openai/codex@${CODEX_VERSION}
+RUN set -eu; \
+    mkdir -p "$CODEX_HOME"; \
+    for attempt in 1 2 3; do \
+        if npm install -g @openai/codex@${CODEX_VERSION} && codex --version; then \
+            exit 0; \
+        fi; \
+        echo "codex install attempt ${attempt} failed; retrying" >&2; \
+        npm uninstall -g @openai/codex >/dev/null 2>&1 || true; \
+    done; \
+    echo "codex: platform binary still missing after 3 attempts" >&2; \
+    exit 1
 
 # Install xAI Grok Build. The official installer keeps its managed binary in
 # ~/.grok, but that directory is bind-mounted at runtime for auth and session
@@ -237,7 +254,8 @@ RUN set -eu; \
 # documented by upstream — keep it. Pi auto-discovers ~/.pi/agent/ and the
 # AGENTS.md / SYSTEM.md chain from CWD upward; no env var needed.
 ARG PI_VERSION=latest
-RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent@${PI_VERSION}
+RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent@${PI_VERSION} \
+    && pi --version
 
 VOLUME /commandhistory
 
